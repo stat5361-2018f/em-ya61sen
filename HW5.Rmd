@@ -1,0 +1,203 @@
+---
+title: "Homework 5 - STAT 5362 Statistical Computing"
+author:
+  - Sen Yang^[<sen.2.yang@uconn.edu>; M.S. student at
+    Department of Statistics, University of Connecticut.]
+date: "`r format(Sys.time(), '%d %B %Y')`"
+documentclass: article
+papersize: letter
+fontsize: 11pt
+bibliography: template.bib
+biblio-style: asa
+output:
+  bookdown::pdf_document2
+abstract: |
+    This is homework 5 for STAT 5362 - Statistical Computing.
+---
+
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+## some utility functions, see the source code for details
+source("utils_template.R")
+
+## specify the packages needed
+pkgs <- c("DT", "leaflet", "splines2", "webshot")
+need.packages(pkgs)
+
+## external data can be read in by regular functions,
+## such as read.table or load
+
+## for latex and html output
+isHtml <- knitr::is_html_output()
+isLatex <- knitr::is_latex_output()
+latex <- ifelse(isLatex, '\\LaTeX\\', 'LaTeX')
+
+## specify global chunk options
+knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
+                      out.width = "90%", fig.align = "center")
+
+```
+
+
+# Finite mixture regression {#sec:4.8.1}
+
+## Validity of the provided E-step and M-step
+
+**E-Step:**
+\begin{align*}
+    & Q(\mathbf{\Psi}|\mathbf{\Psi}^{(k)}) \\
+    & = \mathbb{E}[l_n^c(\mathbf{\Psi})|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)}] \\
+    & = \sum_z p(z|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)}) l_n^c(\mathbf{\Psi}) \\
+    & =\sum_z p(z|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)})
+    \sum_{i=1}^n\sum_{j=1}^m
+    z_{ij}\log\{\pi_j\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j;0,\sigma^2)\} \\
+    & = \sum_{i=1}^n\sum_{j=1}^m 
+    [\sum_z p(z|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)}) z_{ij}]
+    \log\{\pi_j\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j;0,\sigma^2)\} \\
+    & = \sum_{i=1}^n\sum_{j=1}^m E(z_{ij}|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)})
+    \log\{\pi_j\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j;0,\sigma^2)\}
+\end{align*}
+
+Here, 
+\begin{align*}
+  & E(z_{ij}|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)}) \\
+  & = p(z_{ij}=1|y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)}) \\
+  & = \frac{p(z_{ij}=1,y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)})}
+  {p(y_i,\mathbf{x}_i;\mathbf{\Psi}^{(k)})} \\
+  & = \frac{\pi_j^{(k)}\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j^{(k)};0,\sigma^{2^{(k)}})}
+  {\sum_{j=1}^{m}\pi_j^{(k)}\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j^{(k)};0,\sigma^{2^{(k)}}
+  )}\\
+  & = p_{ij}^{(k+1)}
+\end{align*}
+
+**M-Step:**
+
+Since $\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j;0,\sigma^2) = (2\pi\sigma^2)^{-1/2}\exp[-\frac{1}{2}\frac{(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j)^2}{\sigma^2}]$, then we have
+
+\begin {align*}
+  & Q(\mathbf{\Psi}|\mathbf{\Psi}^{(k)}) \\
+  & = \sum_{i=1}^n\sum_{j=1}^m p_{ij}^{(k+1)}\{\log\pi_j + 
+  \log\phi(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j;0,\sigma^2)\} \\
+  & = \sum_{i=1}^n\sum_{j=1}^m p_{ij}^{(k+1)} \{\log\pi_j - \frac{1}{2}\log2\pi\sigma^2 
+  -\frac{1}{2}(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j)^2 \} \\
+  & = \sum_{i=1}^n\sum_{j=1}^m p_{ij}^{(k+1)}\log\pi_j - \frac{1}{2}\sum_{i=1}^n\sum_{j=1}^m 
+  p_{ij}^{(k+1)}\log2\pi\sigma^2-\frac{1}{2}\sum_{i=1}^n\sum_{j=1}^m 
+  p_{ij}^{(k+1)}\frac{(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j)^2}{\sigma^2} \\
+  & = I_1 - \frac{I_2}{2} - \frac{I_3}{2}
+\end {align*}
+
+Therefore, we have $I_1=\sum_{i=1}^n\sum_{j=1}^m p_{ij}^{(k+1)}\log\pi_j$, $I_2=\sum_{i=1}^n\sum_{j=1}^mp_{ij}^{(k+1)}\log2\pi\sigma^2$ and $I_3 = \sum_{i=1}^n\sum_{j=1}^m p_{ij}^{(k+1)}\frac{(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j)^2}{\sigma^2}$, with $\sum_{j=1}^{m}p_{ij}=1$ and $\sum_{j=1}^{m}\pi_{j}=1$.
+
+\vspace{5mm}
+**1.** For $\pi_j$, only $I_1$ contains $\pi_j$. Given $\sum_{j=1}^{m}\pi_{j}=1$, we have
+
+\begin {align*}
+  &\frac{\partial I_1}{\partial \pi_j} \\
+  & = \frac{\sum_{i=1}^{n}p_{ij}^{(k+1)}}{\pi_j} - 
+  \frac{\sum_{i=1}^{n}p_{il}^{(k+1)}}{1-\sum_{a\neq l}\pi_a} , where \:\: l \neq j. \\
+  & = \frac{\sum_{i=1}^{n}p_{ij}^{(k+1)}}{\pi_j} - 
+  \frac{\sum_{i=1}^{n}p_{il}^{(k+1)}}{\pi_l} , where \:\: l \neq j. \\
+  & = 0 \\
+  & \Longrightarrow \frac{\sum_{i=1}^{n}p_{ij}^{(k+1)}}{\pi_j}=
+  \frac{\sum_{i=1}^{n}p_{il}^{(k+1)}}{\pi_l} \\
+  & \Longrightarrow \pi_l = 
+  \frac{\sum_{i=1}^{n}p_{il}^{(k+1)} \pi_j}{\sum_{i=1}^{n}p_{ij}^{(k+1)}} \\
+  & \Longrightarrow \sum_{l=1}^m \pi_j = \sum_{l=1}^m [
+  \frac{\sum_{i=1}^{n}p_{il}^{(k+1)} \pi_l}{\sum_{i=1}^{n}p_{ij}^{(k+1)}}] \\
+  & \Longrightarrow 1 = \frac{\sum_{i=1}^{n}\sum_{l=1}^m p_{il}^{(k+1)}\pi_j}
+  {\sum_{i=1}^{n}p_{ij}^{(k+1)}} = \frac{\sum_{i=1}^{n}1 \cdot \pi_j }
+  {\sum_{i=1}^{n}p_{ij}^{(k+1)}} = \frac{n\cdot \pi_j} {\sum_{i=1}^{n}p_{ij}^{(k+1)}}\\
+  & \Longrightarrow \pi_j^{(k+1)} = \frac{\sum_{i=1}^{n}p_{ij}^{(k+1)}}{n}
+\end {align*}
+\vspace{5mm}
+**2.** For $\mathbf{\beta}_j$, only $I_3$ contains $\mathbf{\beta}_j$.
+\begin {align*}
+  &\frac{\partial I_3}{\partial \mathbf{\beta}_j} \\
+  & = -\sum_{i=1}^n p_{ij}^{(k+1)} \cdot 
+  2 \mathbf{x}_i \frac{(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j)}{\sigma^2} =0 \\
+  & \Longrightarrow \sum_{i=1}^{n}p_{ij}^{(k+1)}\mathbf{x}_iy_i = 
+  \sum_{i=1}^{n}p_{ij}^{(k+1)}\mathbf{x}_i\mathbf{x}_i^\top\mathbf{\beta}_j \\
+  & \Longrightarrow \mathbf{\beta}_j^{(k+1)}=(\sum_{i=1}^{n}p_{ij}^{(k+1)}
+  \mathbf{x}_i\mathbf{x}_i^\top)^{-1}(\sum_{i=1}^{n}p_{ij}^{(k+1)}\mathbf{x}_iy_i)
+\end {align*}
+\vspace{5mm}
+**3.** For $\sigma^2$, $I_2$ and $I_3$ contain $\sigma^2$.
+\begin {align*}
+  & \frac{\partial I_2}{\partial \sigma^2}+ \frac{\partial I_3}{\partial \sigma^2}\\
+  & = \frac{n}{\sigma^2} - (\sigma^2) ^{-2} \sum_{i=1}^n\sum_{j=1}^m 
+  p_{ij}^{(k+1)}(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j^{(k+1)})^2 =0 \\
+  & \Longrightarrow \sigma^{2^{(k+1)}} = \frac{\sum_{i=1}^n\sum_{j=1}^m 
+  p_{ij}^{(k+1)}(y_i-\mathbf{x}_i^\top\mathbf{\beta}_j^{(k+1)})^2}{n}
+\end {align*}
+\vspace{5mm}
+
+## Apply EM algorithm in R with function ```regmix_em```
+
+```{r em, echo=T}
+## regmix_em
+regmix_em <- function(y, xmat, pi.init, beta.init , sigma.init, 
+                     control = list(maxit = 500, tol = 1e-5)) {
+  n <- nrow(xmat)
+  k <- ncol(beta.init)
+  p <- matrix(0, nrow = nrow(xmat), ncol = ncol(beta.init))
+  p_nume<-p
+  beta1 <- beta.init
+  pi1<-pi.init
+for (r in 1:control$maxit) {
+  for (j in 1:k) {
+    p_nume[,j] <- as.matrix((pi.init[j]*(2*3.14159265*sigma.init^2)^(-0.5)*
+                 exp(-(y-as.matrix(xmat)%*%as.matrix(beta.init[,j]))^2/2/sigma.init^2)))
+  }
+  p_deno <- rowSums(p_nume)
+  p <- p_nume/p_deno
+  pi1 <- colSums(p)/n
+  for (j in 1:k) {
+    beta1_2nd <- matrix(0, nrow = ncol(xmat), ncol=k)
+    for (i in 1:n) {
+      beta1_2nd[,j] <- beta1_2nd[,j] + t(xmat[i,]*p[i,j]*y[i])
+    }
+    beta1[,j] <- (sum(diag(as.matrix(xmat)%*%t(as.matrix(xmat)))
+                      *p[,j]))^(-1)*beta1_2nd[,j]
+  }
+  sigma_2 <- sum( (y-as.matrix(xmat)%*%as.matrix(beta1))^2 * p)
+  sigma_1 <- sqrt(sigma_2)
+  if ((max(abs(pi1-pi.init)) <= control$tol) &(max(abs(beta1-beta.init)) <= control$tol) &
+      (max(sigma_1-sigma.init) <= control$tol )) break
+  pi.init<-pi1
+  beta.init<-beta1
+  sigma.init<-sigma_1
+}
+  return(list(pi=pi1, beta=beta1, sigma=sigma_1, iteration=r))
+}
+
+```
+
+## Parameters estimation for generated data
+
+```{r sim, echo=T}
+## regmix_sim
+regmix_sim <- function(n, pi, beta, sigma) {
+  K <- ncol(beta)
+  p <- NROW(beta)
+  xmat <- matrix(rnorm(n * p), n, p) # normal covaraites
+  error <- matrix(rnorm(n * K, sd = sigma), n, K)
+  ymat <- xmat %*% beta + error # n by K matrix
+  ind <- t(rmultinom(n, size = 1, prob = pi))
+  y <- rowSums(ymat * ind)
+  data.frame(y, xmat)
+}
+
+## simulation
+n <- 400
+pi <- c(.3, .4, .3)
+bet <- matrix(c( 1,  1,  1, 
+                 -1, -1, -1), 2, 3)
+sig <- 1
+set.seed(1205)
+dat <- regmix_sim(n, pi, bet, sig)
+regmix_em(y = dat[,1], xmat = dat[,-1], 
+           pi.init = pi/pi/length(pi),
+           beta.init = bet*1,
+           sigma.init = sig / sig, 
+           control = list(maxit = 500, tol = 1e-5))
+```
