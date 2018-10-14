@@ -16,14 +16,15 @@ for (r in 1:control$maxit) {
   p <- p_nume/p_deno
   pi1 <- colSums(p)/n
   for (j in 1:k) {
+    beta1_1st <- matrix(0, nrow = ncol(xmat), ncol=ncol(xmat))
     beta1_2nd <- matrix(0, nrow = ncol(xmat), ncol=k)
     for (i in 1:n) {
+      beta1_1st <- beta1_1st + t(as.matrix(xmat[i,])) %*% as.matrix(xmat[i,])*p[i,j]
       beta1_2nd[,j] <- beta1_2nd[,j] + t(xmat[i,]*p[i,j]*y[i])
     }
-    beta1[,j] <- (sum(diag(as.matrix(xmat)%*%t(as.matrix(xmat)))
-                      *p[,j]))^(-1)*beta1_2nd[,j]
+    beta1[,j] <- solve(beta1_1st)%*% as.matrix(beta1_2nd[,j])
   }
-  sigma_2 <- sum( (y-as.matrix(xmat)%*%as.matrix(beta1))^2 * p)
+  sigma_2 <- sum(p*(as.matrix(y)%*%rep(1,k)-as.matrix(xmat)%*%as.matrix(beta1))^2)/n
   sigma_1 <- sqrt(sigma_2)
   if ((max(abs(pi1-pi.init)) <= control$tol) &(max(abs(beta1-beta.init)) <= control$tol) &
       (max(sigma_1-sigma.init) <= control$tol )) break
